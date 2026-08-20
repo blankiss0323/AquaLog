@@ -27,7 +27,7 @@ body {
   background: var(--bg);
   color: var(--text);
   min-height: 100vh;
-  padding-bottom: env(safe-area-inset-bottom, 20px);
+  padding-bottom: calc(env(safe-area-inset-bottom, 20px) + 10px);
 }
 .header {
   background: linear-gradient(135deg, #0f2235, #162d45);
@@ -49,7 +49,7 @@ body {
   flex: 1;
   padding: 10px 2px;
   text-align: center;
-  font-size: 12px;
+  font-size: 11px;
   color: var(--sub);
   border: none;
   background: none;
@@ -57,6 +57,7 @@ body {
   cursor: pointer;
   font-weight: 400;
   font-family: inherit;
+  white-space: nowrap;
 }
 .tab.active {
   color: var(--blue);
@@ -171,6 +172,7 @@ body {
   text-align: center;
   outline: none;
   font-family: inherit;
+  -webkit-appearance: none;
 }
 .input-memo {
   width: 100%;
@@ -195,9 +197,15 @@ body {
   font-weight: 700;
   cursor: pointer;
   font-family: inherit;
+  transition: opacity 0.2s;
 }
 .btn:active { opacity: 0.8; }
-.btn-success { background: #166534; color: #4ade80; }
+.btn-success { background: #166534 !important; color: #4ade80 !important; }
+.btn-small {
+  width: auto;
+  padding: 6px 14px;
+  font-size: 12px;
+}
 .history-item {
   background: var(--card);
   border-radius: 8px;
@@ -219,6 +227,7 @@ body {
   font-size: 16px;
   cursor: pointer;
   padding: 2px 6px;
+  font-family: inherit;
 }
 .tag {
   display: inline-block;
@@ -261,7 +270,11 @@ summary {
   color: var(--blue);
   cursor: pointer;
   font-weight: 600;
+  list-style: none;
 }
+summary::-webkit-details-marker { display: none; }
+summary::before { content: '▶ '; font-size: 10px; }
+details[open] summary::before { content: '▼ '; }
 .safe-line {
   display: flex;
   justify-content: space-between;
@@ -269,16 +282,79 @@ summary {
   color: var(--sub);
   padding: 2px 0;
 }
-.schedule-card {
+.sched-item {
   background: var(--bg);
-  border-radius: 8px;
-  padding: 10px;
-  margin-bottom: 6px;
+  border-radius: 10px;
+  padding: 12px;
+  margin-bottom: 8px;
+  border-left: 3px solid var(--accent);
 }
-.schedule-title { font-size: 12px; color: var(--blue); font-weight: 600; }
-.schedule-detail { font-size: 11px; color: var(--sub); margin-top: 3px; }
-.canvas-container { width: 100%; overflow-x: auto; }
-canvas { display: block; }
+.sched-item.overdue { border-left-color: var(--danger); }
+.sched-item.soon { border-left-color: var(--warn); }
+.sched-item.ok { border-left-color: var(--good); }
+.sched-label { font-size: 13px; font-weight: 700; color: var(--text); margin-bottom: 4px; }
+.sched-detail { font-size: 11px; color: var(--sub); line-height: 1.6; }
+.sched-status { font-size: 12px; font-weight: 700; margin-top: 4px; }
+.toggle-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 0;
+}
+.toggle-label { font-size: 13px; color: var(--text); }
+.toggle-sub { font-size: 11px; color: var(--sub); margin-top: 2px; }
+.toggle-switch {
+  position: relative;
+  width: 48px;
+  height: 26px;
+  flex-shrink: 0;
+}
+.toggle-switch input { opacity: 0; width: 0; height: 0; }
+.toggle-slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: #1e3a54;
+  border-radius: 26px;
+  transition: 0.3s;
+}
+.toggle-slider:before {
+  content: '';
+  position: absolute;
+  height: 20px; width: 20px;
+  left: 3px; bottom: 3px;
+  background: var(--sub);
+  border-radius: 50%;
+  transition: 0.3s;
+}
+.toggle-switch input:checked + .toggle-slider { background: var(--accent); }
+.toggle-switch input:checked + .toggle-slider:before {
+  transform: translateX(22px);
+  background: var(--blue);
+}
+.protocol-step {
+  display: flex;
+  gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1px solid #1e3a5440;
+}
+.protocol-step:last-child { border-bottom: none; }
+.protocol-marker {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+.protocol-marker.done { background: rgba(34,197,94,0.2); color: #4ade80; }
+.protocol-marker.active { background: rgba(58,138,184,0.3); color: var(--blue); }
+.protocol-marker.pending { background: rgba(74,122,150,0.15); color: var(--sub); }
+.protocol-text { font-size: 12px; color: var(--text); line-height: 1.5; }
+.protocol-text small { color: var(--sub); }
 </style>
 </head>
 <body>
@@ -292,8 +368,8 @@ canvas { display: block; }
 <div class="content" id="content"></div>
 
 <script>
-// === DATA ===
-const TANKS = {
+// === CONFIG ===
+var TANKS = {
   perco: {
     id:'perco', name:'PERCO', subtitle:'ミッキー（赤プラティ）', emoji:'🐠',
     limits: {
@@ -313,405 +389,734 @@ const TANKS = {
     }
   }
 };
-const PARAMS = ['NO3','NO2','GH','KH','pH','Cl2','NH3'];
-const PARAM_COLORS = {NO3:'#e07a3a',NO2:'#d94040',GH:'#5b8fb9',KH:'#7b6fb0',pH:'#3a9e6e',Cl2:'#8fad5e',NH3:'#c75d8a'};
+var PARAMS = ['NO3','NO2','GH','KH','pH','Cl2','NH3'];
+var PARAM_COLORS = {NO3:'#e07a3a',NO2:'#d94040',GH:'#5b8fb9',KH:'#7b6fb0',pH:'#3a9e6e',Cl2:'#8fad5e',NH3:'#c75d8a'};
+
+// === SCHEDULE CONFIG ===
+var SCHEDULES = {
+  perco_treatment: {
+    change: { intervalDays: 2.5, label: '換水＋底砂プロホース', detail: '1/2換水、2分割で底砂掃除。水温30℃合わせ' },
+    measure: { intervalDays: 2.5, label: '水質測定（6in1）', detail: '換水前に測定。NO2検出で即追加換水' },
+    ammonia: { intervalDays: 3, label: 'アンモニア測定', detail: 'sera試薬で測定' }
+  },
+  perco_normal: {
+    change: { intervalDays: 7, label: '換水＋底砂プロホース', detail: '1/4換水。NO3が40超えでペース上げ' },
+    measure: { intervalDays: 7, label: '水質測定（6in1）', detail: '換水前に測定' },
+    ammonia: { intervalDays: 14, label: 'アンモニア測定', detail: '定期チェック' }
+  },
+  sub_initial: {
+    change: { intervalDays: 7, label: 'スポイト清掃＋足し水', detail: 'NO3が30超えたら1/4換水' },
+    measure: { intervalDays: 3, label: '水質測定（6in1）', detail: 'アカヒレ導入後1〜2週間は頻回測定' },
+    ammonia: { intervalDays: 3, label: 'アンモニア測定', detail: '導入直後は重点モニタリング' }
+  },
+  sub_stable: {
+    change: { intervalDays: 7, label: 'スポイト清掃＋足し水', detail: '目視で汚れたら適宜。NO3が30超えで1/4換水' },
+    measure: { intervalDays: 7, label: '水質測定（6in1）', detail: '定期チェック' },
+    ammonia: { intervalDays: 14, label: 'アンモニア測定', detail: '定期チェック' }
+  }
+};
 
 // === STORAGE ===
-function loadData(key) { try { return JSON.parse(localStorage.getItem(key)) || []; } catch(e) { return []; } }
-function saveData(key, data) { localStorage.setItem(key, JSON.stringify(data)); }
+function loadData(key, fallback) {
+  try {
+    var d = localStorage.getItem(key);
+    return d ? JSON.parse(d) : (fallback !== undefined ? fallback : []);
+  } catch(e) { return fallback !== undefined ? fallback : []; }
+}
+function saveData(key, data) {
+  try { localStorage.setItem(key, JSON.stringify(data)); } catch(e) {}
+}
 
-let qualityLogs = loadData('aq-quality');
-let changeLogs = loadData('aq-changes');
-let activeTab = 'dashboard';
-let activeTank = 'perco';
-let formTank = 'perco';
+var qualityLogs = loadData('aq-quality', []);
+var changeLogs = loadData('aq-changes', []);
+var settings = loadData('aq-settings', {
+  percoMode: 'treatment',
+  subMode: 'initial'
+});
+
+var activeTab = 'dashboard';
+var activeTank = 'perco';
+var formTank = 'perco';
 
 // === HELPERS ===
-function fmtDate(d) { const dt=new Date(d); return `${dt.getMonth()+1}/${dt.getDate()} ${String(dt.getHours()).padStart(2,'0')}:${String(dt.getMinutes()).padStart(2,'0')}`; }
-function fmtShort(d) { const dt=new Date(d); return `${dt.getMonth()+1}/${dt.getDate()}`; }
-function daysSince(d) {
-  if(!d) return null;
-  const diff = Date.now() - new Date(d).getTime();
-  const h = Math.floor(diff/3600000);
-  if(h<24) return h+'時間前';
-  return Math.floor(diff/86400000)+'日前';
+function fmtDate(d) {
+  var dt = new Date(d);
+  return (dt.getMonth()+1) + '/' + dt.getDate() + ' ' +
+    String(dt.getHours()).padStart(2,'0') + ':' + String(dt.getMinutes()).padStart(2,'0');
 }
+function fmtShort(d) {
+  var dt = new Date(d);
+  return (dt.getMonth()+1) + '/' + dt.getDate();
+}
+function fmtFull(d) {
+  var dt = new Date(d);
+  return dt.getFullYear() + '/' + (dt.getMonth()+1) + '/' + dt.getDate() + ' ' +
+    String(dt.getHours()).padStart(2,'0') + ':' + String(dt.getMinutes()).padStart(2,'0');
+}
+function hoursSince(d) {
+  if (!d) return null;
+  return (Date.now() - new Date(d).getTime()) / 3600000;
+}
+function daysSince(d) {
+  if (!d) return null;
+  var diff = Date.now() - new Date(d).getTime();
+  var h = Math.floor(diff / 3600000);
+  if (h < 1) return '直前';
+  if (h < 24) return h + '時間前';
+  var days = Math.floor(diff / 86400000);
+  return days + '日前';
+}
+function daysUntilStr(hours) {
+  if (hours <= 0) return '期限超過';
+  if (hours < 1) return 'まもなく';
+  if (hours < 24) return Math.ceil(hours) + '時間後';
+  return Math.ceil(hours / 24) + '日後';
+}
+
 function getStatus(v, lim) {
-  if(v===''||v===null||v===undefined) return 'none';
-  const n=parseFloat(v); if(isNaN(n)) return 'none';
-  if(lim.safe[1]===0&&lim.safe[0]===0) return n===0?'good':'danger';
-  if(n<lim.safe[0]||n>lim.safe[1]) return 'danger';
-  if(n<lim.ideal[0]||n>lim.ideal[1]) return 'warn';
+  if (v === '' || v === null || v === undefined) return 'none';
+  var n = parseFloat(v);
+  if (isNaN(n)) return 'none';
+  if (lim.safe[1] === 0 && lim.safe[0] === 0) return n === 0 ? 'good' : 'danger';
+  if (n < lim.safe[0] || n > lim.safe[1]) return 'danger';
+  if (n < lim.ideal[0] || n > lim.ideal[1]) return 'warn';
   return 'good';
 }
-function statusColor(s) { return {good:'#22c55e',warn:'#eab308',danger:'#ef4444',none:'#94a3b8'}[s]; }
-function getLatest(tid) { return qualityLogs.filter(l=>l.tank===tid).slice(-1)[0]||null; }
-function getLastChange(tid) { return changeLogs.filter(l=>l.tank===tid).slice(-1)[0]||null; }
+function statusColor(s) {
+  var map = {good:'#22c55e', warn:'#eab308', danger:'#ef4444', none:'#94a3b8'};
+  return map[s] || '#94a3b8';
+}
+function getLatest(tid) {
+  var arr = qualityLogs.filter(function(l){ return l.tank === tid; });
+  return arr.length > 0 ? arr[arr.length - 1] : null;
+}
+function getLastChange(tid) {
+  var arr = changeLogs.filter(function(l){ return l.tank === tid; });
+  return arr.length > 0 ? arr[arr.length - 1] : null;
+}
 function getAlerts(tid) {
-  const latest=getLatest(tid), tank=TANKS[tid], alerts=[];
-  if(!latest) return [{type:'warn',msg:'水質データなし'}];
-  PARAMS.forEach(p=>{
-    if(latest[p]!==''&&latest[p]!==undefined&&latest[p]!==null){
-      const st=getStatus(latest[p],tank.limits[p]);
-      if(st==='danger') alerts.push({type:'danger',msg:`${p}: ${latest[p]} — 危険域！即対応`});
-      else if(st==='warn') alerts.push({type:'warn',msg:`${p}: ${latest[p]} — 注意域`});
+  var latest = getLatest(tid);
+  var tank = TANKS[tid];
+  var alerts = [];
+  if (!latest) return [{type:'warn', msg:'水質データなし'}];
+  PARAMS.forEach(function(p) {
+    if (latest[p] !== '' && latest[p] !== undefined && latest[p] !== null) {
+      var st = getStatus(latest[p], tank.limits[p]);
+      if (st === 'danger') alerts.push({type:'danger', msg: p + ': ' + latest[p] + ' — 危険域！即対応'});
+      else if (st === 'warn') alerts.push({type:'warn', msg: p + ': ' + latest[p] + ' — 注意域'});
     }
   });
-  const lc=getLastChange(tid);
-  if(lc){ const dd=(Date.now()-new Date(lc.date).getTime())/86400000;
-    if(tid==='perco'&&dd>3) alerts.push({type:'warn',msg:`換水から${Math.floor(dd)}日経過`});
-    if(tid==='sub'&&dd>7) alerts.push({type:'warn',msg:`換水から${Math.floor(dd)}日経過`});
+  var lc = getLastChange(tid);
+  if (lc) {
+    var dd = (Date.now() - new Date(lc.date).getTime()) / 86400000;
+    if (tid === 'perco' && dd > 3) alerts.push({type:'warn', msg: '換水から' + Math.floor(dd) + '日経過'});
+    if (tid === 'sub' && dd > 7) alerts.push({type:'warn', msg: '換水から' + Math.floor(dd) + '日経過'});
   }
   return alerts;
+}
+function escHtml(s) {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
 // === RENDER ===
 function renderTabs() {
-  const tabs=[{id:'dashboard',label:'状態'},{id:'log',label:'記録'},{id:'chart',label:'推移'},{id:'history',label:'履歴'},{id:'export',label:'出力'}];
-  document.getElementById('tabs').innerHTML = tabs.map(t=>
-    `<button class="tab${activeTab===t.id?' active':''}" onclick="switchTab('${t.id}')">${t.label}</button>`
-  ).join('');
+  var tabs = [
+    {id:'dashboard', label:'状態'},
+    {id:'log', label:'記録'},
+    {id:'schedule', label:'予定'},
+    {id:'chart', label:'推移'},
+    {id:'history', label:'履歴'},
+    {id:'export', label:'出力'}
+  ];
+  var html = '';
+  tabs.forEach(function(t) {
+    var cls = 'tab' + (activeTab === t.id ? ' active' : '');
+    html += '<button class="' + cls + '" onclick="switchTab(\'' + t.id + '\')">' + t.label + '</button>';
+  });
+  document.getElementById('tabs').innerHTML = html;
 }
 
-function switchTab(id) { activeTab=id; renderTabs(); renderContent(); }
-function switchTank(id) { activeTank=id; renderContent(); }
-function switchFormTank(id) { formTank=id; renderContent(); }
+function switchTab(id) { activeTab = id; renderTabs(); renderContent(); }
+function switchTank(id) { activeTank = id; renderContent(); }
+function switchFormTank(id) { formTank = id; renderContent(); }
 
 function renderContent() {
-  const el=document.getElementById('content');
-  if(activeTab==='dashboard') el.innerHTML=renderDashboard();
-  else if(activeTab==='log') el.innerHTML=renderLog();
-  else if(activeTab==='chart') el.innerHTML=renderChart();
-  else if(activeTab==='history') el.innerHTML=renderHistory();
-  else if(activeTab==='export') el.innerHTML=renderExport();
-  if(activeTab==='chart') drawCharts();
+  var el = document.getElementById('content');
+  switch(activeTab) {
+    case 'dashboard': el.innerHTML = renderDashboard(); break;
+    case 'log': el.innerHTML = renderLog(); break;
+    case 'schedule': el.innerHTML = renderSchedule(); break;
+    case 'chart': el.innerHTML = renderChart(); break;
+    case 'history': el.innerHTML = renderHistory(); break;
+    case 'export': el.innerHTML = renderExport(); break;
+  }
+  if (activeTab === 'chart') drawCharts();
 }
 
+// === DASHBOARD ===
 function renderDashboard() {
-  let html='';
-  Object.values(TANKS).forEach(tank=>{
-    const latest=getLatest(tank.id), lc=getLastChange(tank.id), alerts=getAlerts(tank.id);
-    html+=`<div class="card">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
-        <div><span style="font-size:16px">${tank.emoji}</span>
-        <span style="font-size:15px;font-weight:700;color:var(--blue);margin-left:6px">${tank.name}</span>
-        <span style="font-size:11px;color:var(--sub);margin-left:8px">${tank.subtitle}</span></div>
-      </div>`;
-    if(alerts.length>0) {
-      alerts.forEach(a=>{ html+=`<div class="alert alert-${a.type}">${a.type==='danger'?'⚠️':'💡'} ${a.msg}</div>`; });
-    } else {
-      html+=`<div class="alert alert-good">✅ 全項目セーフ</div>`;
-    }
-    if(latest) {
-      html+=`<div class="values-grid" style="margin-top:10px">`;
-      PARAMS.filter(p=>latest[p]!==''&&latest[p]!==undefined&&latest[p]!==null).forEach(p=>{
-        const st=getStatus(latest[p],tank.limits[p]);
-        html+=`<div class="value-cell" style="border:1px solid ${statusColor(st)}30">
-          <div class="value-label">${p}</div>
-          <div class="value-num" style="color:${statusColor(st)}">${latest[p]}</div>
-        </div>`;
+  var html = '';
+  var tankIds = ['perco', 'sub'];
+  tankIds.forEach(function(tid) {
+    var tank = TANKS[tid];
+    var latest = getLatest(tid);
+    var lc = getLastChange(tid);
+    var alerts = getAlerts(tid);
+
+    html += '<div class="card">';
+    html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">';
+    html += '<div><span style="font-size:16px">' + tank.emoji + '</span>';
+    html += '<span style="font-size:15px;font-weight:700;color:var(--blue);margin-left:6px">' + tank.name + '</span>';
+    html += '<span style="font-size:11px;color:var(--sub);margin-left:8px">' + tank.subtitle + '</span></div></div>';
+
+    if (alerts.length > 0) {
+      alerts.forEach(function(a) {
+        var icon = a.type === 'danger' ? '⚠️' : '💡';
+        html += '<div class="alert alert-' + a.type + '">' + icon + ' ' + a.msg + '</div>';
       });
-      html+=`</div>`;
+    } else {
+      html += '<div class="alert alert-good">✅ 全項目セーフ</div>';
     }
-    html+=`<div class="meta-row"><span>測定: ${latest?daysSince(latest.date):'未測定'}</span><span>換水: ${lc?daysSince(lc.date):'未実施'}</span></div>`;
-    html+=`</div>`;
+
+    if (latest) {
+      html += '<div class="values-grid" style="margin-top:10px">';
+      PARAMS.forEach(function(p) {
+        if (latest[p] !== '' && latest[p] !== undefined && latest[p] !== null) {
+          var st = getStatus(latest[p], tank.limits[p]);
+          html += '<div class="value-cell" style="border:1px solid ' + statusColor(st) + '30">';
+          html += '<div class="value-label">' + p + '</div>';
+          html += '<div class="value-num" style="color:' + statusColor(st) + '">' + latest[p] + '</div></div>';
+        }
+      });
+      html += '</div>';
+    }
+
+    html += '<div class="meta-row">';
+    html += '<span>測定: ' + (latest ? daysSince(latest.date) : '未測定') + '</span>';
+    html += '<span>換水: ' + (lc ? daysSince(lc.date) : '未実施') + '</span></div>';
+    html += '</div>';
   });
+
   // Safe line reference
-  html+=`<details><summary>📊 セーフライン一覧</summary><div style="padding:0 14px 14px">`;
-  Object.values(TANKS).forEach(tank=>{
-    html+=`<div style="margin-bottom:10px"><div style="font-size:12px;font-weight:700;color:var(--blue);margin-bottom:4px">${tank.emoji} ${tank.name}</div>`;
-    PARAMS.forEach(p=>{
-      html+=`<div class="safe-line"><span>${p}</span><span>理想: ${tank.limits[p].ideal[0]}〜${tank.limits[p].ideal[1]} / 限界: ${tank.limits[p].safe[0]}〜${tank.limits[p].safe[1]}</span></div>`;
+  html += '<details><summary>📊 セーフライン一覧</summary><div style="padding:0 14px 14px">';
+  tankIds.forEach(function(tid) {
+    var tank = TANKS[tid];
+    html += '<div style="margin-bottom:10px"><div style="font-size:12px;font-weight:700;color:var(--blue);margin-bottom:4px">' + tank.emoji + ' ' + tank.name + '</div>';
+    PARAMS.forEach(function(p) {
+      html += '<div class="safe-line"><span>' + p + '</span>';
+      html += '<span>理想: ' + tank.limits[p].ideal[0] + '〜' + tank.limits[p].ideal[1] + ' / 限界: ' + tank.limits[p].safe[0] + '〜' + tank.limits[p].safe[1] + '</span></div>';
     });
-    html+=`</div>`;
+    html += '</div>';
   });
-  html+=`</div></details>`;
+  html += '</div></details>';
   return html;
 }
 
+// === LOG ===
 function renderLog() {
-  const tanks=Object.values(TANKS);
-  let html=`<div class="tank-selector">${tanks.map(t=>
-    `<button class="tank-btn${formTank===t.id?' active':''}" onclick="switchFormTank('${t.id}')">${t.emoji} ${t.name}</button>`
-  ).join('')}</div>`;
-
-  // Water quality form
-  html+=`<div class="card"><div class="card-title">💧 水質記録</div>
-    <div class="input-grid">`;
-  PARAMS.forEach(p=>{
-    html+=`<div class="input-group"><label>${p}</label><input type="number" step="0.1" id="q_${p}" placeholder="-"></div>`;
+  var tanks = [TANKS.perco, TANKS.sub];
+  var html = '<div class="tank-selector">';
+  tanks.forEach(function(t) {
+    var cls = 'tank-btn' + (formTank === t.id ? ' active' : '');
+    html += '<button class="' + cls + '" onclick="switchFormTank(\'' + t.id + '\')">' + t.emoji + ' ' + t.name + '</button>';
   });
-  html+=`</div>
-    <input type="text" class="input-memo" id="q_note" placeholder="メモ（任意）">
-    <button class="btn" onclick="addQuality()">記録する</button></div>`;
+  html += '</div>';
 
-  // Water change form
-  html+=`<div class="card"><div class="card-title">🔄 換水記録</div>
-    <div class="input-grid-2">
-      <div class="input-group"><label>換水量 (L)</label><input type="number" step="0.1" id="c_volume" placeholder="1.0"></div>
-      <div class="input-group"><label>水温 (℃)</label><input type="number" step="0.1" id="c_temp" placeholder="30.0"></div>
-    </div>
-    <input type="text" class="input-memo" id="c_note" placeholder="メモ（底砂掃除エリアなど）">
-    <button class="btn" onclick="addChange()">記録する</button></div>`;
+  // Quality form
+  html += '<div class="card"><div class="card-title">💧 水質記録</div><div class="input-grid">';
+  PARAMS.forEach(function(p) {
+    html += '<div class="input-group"><label>' + p + '</label>';
+    html += '<input type="number" step="0.1" id="q_' + p + '" placeholder="-" inputmode="decimal"></div>';
+  });
+  html += '</div>';
+  html += '<input type="text" class="input-memo" id="q_note" placeholder="メモ（任意）">';
+  html += '<button class="btn" id="qBtn" onclick="addQuality()">記録する</button></div>';
+
+  // Change form
+  html += '<div class="card"><div class="card-title">🔄 換水記録</div><div class="input-grid-2">';
+  html += '<div class="input-group"><label>換水量 (L)</label><input type="number" step="0.1" id="c_volume" placeholder="1.0" inputmode="decimal"></div>';
+  html += '<div class="input-group"><label>水温 (℃)</label><input type="number" step="0.1" id="c_temp" placeholder="30.0" inputmode="decimal"></div>';
+  html += '</div>';
+  html += '<input type="text" class="input-memo" id="c_note" placeholder="メモ（底砂掃除エリアなど）">';
+  html += '<button class="btn" id="cBtn" onclick="addChange()">記録する</button></div>';
 
   return html;
 }
 
 function addQuality() {
-  const entry = { id:Date.now(), date:new Date().toISOString(), tank:formTank };
-  PARAMS.forEach(p=>{ entry[p]=document.getElementById('q_'+p).value; });
-  entry.note=document.getElementById('q_note').value;
+  var entry = { id: Date.now(), date: new Date().toISOString(), tank: formTank, note: '' };
+  PARAMS.forEach(function(p) {
+    var el = document.getElementById('q_' + p);
+    entry[p] = el ? el.value : '';
+  });
+  var noteEl = document.getElementById('q_note');
+  entry.note = noteEl ? noteEl.value : '';
+
   qualityLogs.push(entry);
-  qualityLogs.sort((a,b)=>new Date(a.date)-new Date(b.date));
-  saveData('aq-quality',qualityLogs);
-  PARAMS.forEach(p=>{ document.getElementById('q_'+p).value=''; });
-  document.getElementById('q_note').value='';
-  // Show brief feedback
-  const btn=event.target; btn.textContent='✅ 記録完了！'; btn.classList.add('btn-success');
-  setTimeout(()=>{ btn.textContent='記録する'; btn.classList.remove('btn-success'); renderContent(); },1200);
+  qualityLogs.sort(function(a, b) { return new Date(a.date) - new Date(b.date); });
+  saveData('aq-quality', qualityLogs);
+
+  PARAMS.forEach(function(p) {
+    var el = document.getElementById('q_' + p);
+    if (el) el.value = '';
+  });
+  if (noteEl) noteEl.value = '';
+
+  var btn = document.getElementById('qBtn');
+  if (btn) { btn.textContent = '✅ 記録完了！'; btn.className = 'btn btn-success'; }
+  setTimeout(function() { renderContent(); }, 1200);
 }
 
 function addChange() {
-  const entry = { id:Date.now(), date:new Date().toISOString(), tank:formTank,
-    volume:document.getElementById('c_volume').value,
-    temp:document.getElementById('c_temp').value,
-    note:document.getElementById('c_note').value };
+  var volEl = document.getElementById('c_volume');
+  var tempEl = document.getElementById('c_temp');
+  var noteEl = document.getElementById('c_note');
+  var entry = {
+    id: Date.now(),
+    date: new Date().toISOString(),
+    tank: formTank,
+    volume: volEl ? volEl.value : '',
+    temp: tempEl ? tempEl.value : '',
+    note: noteEl ? noteEl.value : ''
+  };
+
   changeLogs.push(entry);
-  changeLogs.sort((a,b)=>new Date(a.date)-new Date(b.date));
-  saveData('aq-changes',changeLogs);
-  document.getElementById('c_volume').value='';
-  document.getElementById('c_temp').value='';
-  document.getElementById('c_note').value='';
-  const btn=event.target; btn.textContent='✅ 記録完了！'; btn.classList.add('btn-success');
-  setTimeout(()=>{ btn.textContent='記録する'; btn.classList.remove('btn-success'); renderContent(); },1200);
+  changeLogs.sort(function(a, b) { return new Date(a.date) - new Date(b.date); });
+  saveData('aq-changes', changeLogs);
+
+  if (volEl) volEl.value = '';
+  if (tempEl) tempEl.value = '';
+  if (noteEl) noteEl.value = '';
+
+  var btn = document.getElementById('cBtn');
+  if (btn) { btn.textContent = '✅ 記録完了！'; btn.className = 'btn btn-success'; }
+  setTimeout(function() { renderContent(); }, 1200);
 }
 
-function renderChart() {
-  const tanks=Object.values(TANKS);
-  let html=`<div class="tank-selector">${tanks.map(t=>
-    `<button class="tank-btn${activeTank===t.id?' active':''}" onclick="switchTank('${t.id}')">${t.emoji} ${t.name}</button>`
-  ).join('')}</div>`;
+// === SCHEDULE ===
+function renderSchedule() {
+  var html = '';
 
-  const data=qualityLogs.filter(l=>l.tank===activeTank);
-  if(data.length<2) {
-    html+=`<div class="empty">データが2件以上必要です。記録を続けてください。</div>`;
+  // PERCO Schedule
+  html += '<div class="card">';
+  html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">';
+  html += '<div class="card-title" style="margin-bottom:0">🐠 PERCO</div></div>';
+
+  // Mode toggle
+  html += '<div class="toggle-row">';
+  html += '<div><div class="toggle-label">白点治療モード</div>';
+  html += '<div class="toggle-sub">' + (settings.percoMode === 'treatment' ? '2〜3日おき換水＋プロホース' : '週1回の定期換水') + '</div></div>';
+  html += '<label class="toggle-switch"><input type="checkbox" ' + (settings.percoMode === 'treatment' ? 'checked' : '') + ' onchange="togglePercoMode(this)">';
+  html += '<span class="toggle-slider"></span></label></div>';
+
+  var percoSched = settings.percoMode === 'treatment' ? SCHEDULES.perco_treatment : SCHEDULES.perco_normal;
+  html += renderScheduleItems('perco', percoSched);
+
+  // Treatment protocol
+  if (settings.percoMode === 'treatment') {
+    html += '<div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--border)">';
+    html += '<div style="font-size:12px;font-weight:700;color:var(--blue);margin-bottom:8px">📋 治療プロトコル</div>';
+    html += renderProtocol();
+    html += '</div>';
+  }
+  html += '</div>';
+
+  // Sub tank Schedule
+  html += '<div class="card">';
+  html += '<div class="card-title">🦐 サブ水槽</div>';
+
+  // Mode toggle
+  html += '<div class="toggle-row">';
+  html += '<div><div class="toggle-label">導入直後モード</div>';
+  html += '<div class="toggle-sub">' + (settings.subMode === 'initial' ? '3日おき測定（重点モニタリング）' : '週1回の定期チェック') + '</div></div>';
+  html += '<label class="toggle-switch"><input type="checkbox" ' + (settings.subMode === 'initial' ? 'checked' : '') + ' onchange="toggleSubMode(this)">';
+  html += '<span class="toggle-slider"></span></label></div>';
+
+  var subSched = settings.subMode === 'initial' ? SCHEDULES.sub_initial : SCHEDULES.sub_stable;
+  html += renderScheduleItems('sub', subSched);
+  html += '</div>';
+
+  // Immediate triggers
+  html += '<div class="card">';
+  html += '<div class="card-title">🚨 即時対応トリガー</div>';
+  html += '<div class="sched-item" style="border-left-color:var(--danger)">';
+  html += '<div class="sched-label">NO2 検出</div>';
+  html += '<div class="sched-detail">即日 1/3 換水。原因を特定するまで毎日測定</div></div>';
+  html += '<div class="sched-item" style="border-left-color:var(--warn)">';
+  html += '<div class="sched-label">生体の異変</div>';
+  html += '<div class="sched-detail">まず水質測定 → 結果次第で換水。行動が説明できるか確認</div></div>';
+  html += '</div>';
+
+  return html;
+}
+
+function renderScheduleItems(tankId, sched) {
+  var html = '';
+  var items = [
+    { key: 'change', icon: '🔄', getDate: function() { var lc = getLastChange(tankId); return lc ? lc.date : null; } },
+    { key: 'measure', icon: '💧', getDate: function() { var lq = getLatest(tankId); return lq ? lq.date : null; } },
+    { key: 'ammonia', icon: '🧪', getDate: function() {
+      var amLogs = qualityLogs.filter(function(l) {
+        return l.tank === tankId && l.NH3 !== '' && l.NH3 !== undefined && l.NH3 !== null;
+      });
+      return amLogs.length > 0 ? amLogs[amLogs.length - 1].date : null;
+    }}
+  ];
+
+  items.forEach(function(item) {
+    var s = sched[item.key];
+    var lastDate = item.getDate();
+    var hoursElapsed = lastDate ? hoursSince(lastDate) : null;
+    var intervalHours = s.intervalDays * 24;
+    var hoursRemaining = hoursElapsed !== null ? intervalHours - hoursElapsed : null;
+
+    var cls = 'sched-item';
+    var statusText = '';
+    var statusClr = '';
+
+    if (hoursRemaining === null) {
+      cls += ' overdue';
+      statusText = '⚠️ 未実施';
+      statusClr = 'var(--danger)';
+    } else if (hoursRemaining <= 0) {
+      cls += ' overdue';
+      statusText = '⚠️ ' + daysUntilStr(hoursRemaining) + '（' + Math.abs(Math.floor(hoursRemaining)) + '時間超過）';
+      statusClr = 'var(--danger)';
+    } else if (hoursRemaining < 12) {
+      cls += ' soon';
+      statusText = '⏰ ' + daysUntilStr(hoursRemaining);
+      statusClr = 'var(--warn)';
+    } else {
+      cls += ' ok';
+      statusText = '✅ 次回: ' + daysUntilStr(hoursRemaining);
+      statusClr = 'var(--good)';
+    }
+
+    html += '<div class="' + cls + '">';
+    html += '<div class="sched-label">' + item.icon + ' ' + s.label + '</div>';
+    html += '<div class="sched-detail">' + s.detail + '</div>';
+    if (lastDate) {
+      html += '<div class="sched-detail">前回: ' + fmtDate(lastDate) + '（' + daysSince(lastDate) + '）</div>';
+    }
+    html += '<div class="sched-status" style="color:' + statusClr + '">' + statusText + '</div>';
+    html += '</div>';
+  });
+
+  return html;
+}
+
+function renderProtocol() {
+  var steps = [
+    { label: '27℃設定（実測28.8℃）', detail: '8/18完了', status: 'done' },
+    { label: '28℃設定（実測29.8℃）', detail: '8/19完了 — 治療温度到達', status: 'done' },
+    { label: '30℃維持＋底砂掃除', detail: '白点消失を待つ。2〜3日おき換水', status: 'active' },
+    { label: '白点消失後1週間維持', detail: '糞の色が茶色に戻るまで', status: 'pending' },
+    { label: '4日かけて26℃に降温', detail: '1日1℃ずつ', status: 'pending' },
+    { label: 'エビを本水槽に戻す', detail: '成体2〜3匹、点滴法で', status: 'pending' },
+    { label: '新プラティ追加', detail: 'オス同士で繁殖防止', status: 'pending' }
+  ];
+
+  var html = '';
+  steps.forEach(function(step, i) {
+    html += '<div class="protocol-step">';
+    html += '<div class="protocol-marker ' + step.status + '">' + (i + 1) + '</div>';
+    html += '<div class="protocol-text">' + step.label + '<br><small>' + step.detail + '</small></div>';
+    html += '</div>';
+  });
+  return html;
+}
+
+function togglePercoMode(el) {
+  settings.percoMode = el.checked ? 'treatment' : 'normal';
+  saveData('aq-settings', settings);
+  renderContent();
+}
+function toggleSubMode(el) {
+  settings.subMode = el.checked ? 'initial' : 'stable';
+  saveData('aq-settings', settings);
+  renderContent();
+}
+
+// === CHART ===
+function renderChart() {
+  var tanks = [TANKS.perco, TANKS.sub];
+  var html = '<div class="tank-selector">';
+  tanks.forEach(function(t) {
+    var cls = 'tank-btn' + (activeTank === t.id ? ' active' : '');
+    html += '<button class="' + cls + '" onclick="switchTank(\'' + t.id + '\')">' + t.emoji + ' ' + t.name + '</button>';
+  });
+  html += '</div>';
+
+  var data = qualityLogs.filter(function(l) { return l.tank === activeTank; });
+  if (data.length < 2) {
+    html += '<div class="empty">データが2件以上必要です。記録を続けてください。</div>';
     return html;
   }
 
-  html+=`<div class="card"><div class="card-title">NO3 / NO2</div>
-    <div class="canvas-container"><canvas id="chart1" width="340" height="180"></canvas></div></div>`;
-  html+=`<div class="card"><div class="card-title">GH / KH / pH</div>
-    <div class="canvas-container"><canvas id="chart2" width="340" height="180"></canvas></div></div>`;
+  html += '<div class="card"><div class="card-title">NO3 / NO2</div>';
+  html += '<div style="width:100%;overflow-x:auto"><canvas id="chart1" height="180"></canvas></div></div>';
 
-  const hasNH3 = data.some(d=>d.NH3!==''&&d.NH3!==undefined&&d.NH3!==null);
-  if(hasNH3) {
-    html+=`<div class="card"><div class="card-title">NH3（アンモニア）</div>
-      <div class="canvas-container"><canvas id="chart3" width="340" height="150"></canvas></div></div>`;
+  html += '<div class="card"><div class="card-title">GH / KH / pH</div>';
+  html += '<div style="width:100%;overflow-x:auto"><canvas id="chart2" height="180"></canvas></div></div>';
+
+  var hasNH3 = data.some(function(d) { return d.NH3 !== '' && d.NH3 !== undefined && d.NH3 !== null; });
+  if (hasNH3) {
+    html += '<div class="card"><div class="card-title">NH3（アンモニア）</div>';
+    html += '<div style="width:100%;overflow-x:auto"><canvas id="chart3" height="150"></canvas></div></div>';
   }
   return html;
 }
 
 function drawCharts() {
-  const data=qualityLogs.filter(l=>l.tank===activeTank);
-  if(data.length<2) return;
+  var data = qualityLogs.filter(function(l) { return l.tank === activeTank; });
+  if (data.length < 2) return;
 
-  const labels=data.map(d=>fmtShort(d.date));
-  const w=Math.max(340, labels.length*50);
+  var labels = data.map(function(d) { return fmtShort(d.date); });
+  var w = Math.max(320, labels.length * 50);
 
-  // Chart 1: NO3/NO2
   drawLineChart('chart1', w, 180, labels, [
-    {key:'NO3',color:PARAM_COLORS.NO3,data:data.map(d=>d.NO3!==''?parseFloat(d.NO3):null)},
-    {key:'NO2',color:PARAM_COLORS.NO2,data:data.map(d=>d.NO2!==''?parseFloat(d.NO2):null)}
+    {key:'NO3', color:PARAM_COLORS.NO3, data: data.map(function(d){ return d.NO3 !== '' ? parseFloat(d.NO3) : null; })},
+    {key:'NO2', color:PARAM_COLORS.NO2, data: data.map(function(d){ return d.NO2 !== '' ? parseFloat(d.NO2) : null; })}
   ], TANKS[activeTank].limits.NO3.safe[1]);
 
-  // Chart 2: GH/KH/pH
   drawLineChart('chart2', w, 180, labels, [
-    {key:'GH',color:PARAM_COLORS.GH,data:data.map(d=>d.GH!==''?parseFloat(d.GH):null)},
-    {key:'KH',color:PARAM_COLORS.KH,data:data.map(d=>d.KH!==''?parseFloat(d.KH):null)},
-    {key:'pH',color:PARAM_COLORS.pH,data:data.map(d=>d.pH!==''?parseFloat(d.pH):null)}
+    {key:'GH', color:PARAM_COLORS.GH, data: data.map(function(d){ return d.GH !== '' ? parseFloat(d.GH) : null; })},
+    {key:'KH', color:PARAM_COLORS.KH, data: data.map(function(d){ return d.KH !== '' ? parseFloat(d.KH) : null; })},
+    {key:'pH', color:PARAM_COLORS.pH, data: data.map(function(d){ return d.pH !== '' ? parseFloat(d.pH) : null; })}
   ]);
 
-  // Chart 3: NH3
-  const hasNH3=data.some(d=>d.NH3!==''&&d.NH3!==undefined&&d.NH3!==null);
-  if(hasNH3) {
+  var hasNH3 = data.some(function(d) { return d.NH3 !== '' && d.NH3 !== undefined && d.NH3 !== null; });
+  if (hasNH3) {
     drawLineChart('chart3', w, 150, labels, [
-      {key:'NH3',color:PARAM_COLORS.NH3,data:data.map(d=>d.NH3!==''&&d.NH3!==undefined?parseFloat(d.NH3):null)}
+      {key:'NH3', color:PARAM_COLORS.NH3, data: data.map(function(d){ return (d.NH3 !== '' && d.NH3 !== undefined) ? parseFloat(d.NH3) : null; })}
     ]);
   }
 }
 
 function drawLineChart(canvasId, w, h, labels, series, refLine) {
-  const canvas=document.getElementById(canvasId);
-  if(!canvas) return;
-  const dpr=window.devicePixelRatio||1;
-  canvas.width=w*dpr; canvas.height=h*dpr;
-  canvas.style.width=w+'px'; canvas.style.height=h+'px';
-  const ctx=canvas.getContext('2d');
-  ctx.scale(dpr,dpr);
+  var canvas = document.getElementById(canvasId);
+  if (!canvas) return;
+  var dpr = window.devicePixelRatio || 1;
+  canvas.width = w * dpr;
+  canvas.height = h * dpr;
+  canvas.style.width = w + 'px';
+  canvas.style.height = h + 'px';
+  var ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
 
-  const pad={top:20,right:16,bottom:28,left:36};
-  const cw=w-pad.left-pad.right, ch=h-pad.top-pad.bottom;
+  var pad = {top:20, right:16, bottom:28, left:38};
+  var cw = w - pad.left - pad.right;
+  var ch = h - pad.top - pad.bottom;
 
-  // Find min/max
-  let allVals=[];
-  series.forEach(s=>s.data.forEach(v=>{if(v!==null&&!isNaN(v))allVals.push(v);}));
-  if(refLine!==undefined) allVals.push(refLine);
-  let min=Math.min(...allVals), max=Math.max(...allVals);
-  if(min===max){min-=1;max+=1;}
-  const range=max-min;
-  min-=range*0.1; max+=range*0.1;
+  var allVals = [];
+  series.forEach(function(s) {
+    s.data.forEach(function(v) { if (v !== null && !isNaN(v)) allVals.push(v); });
+  });
+  if (refLine !== undefined) allVals.push(refLine);
+  if (allVals.length === 0) return;
+
+  var min = Math.min.apply(null, allVals);
+  var max = Math.max.apply(null, allVals);
+  if (min === max) { min -= 1; max += 1; }
+  var range = max - min;
+  min -= range * 0.1;
+  max += range * 0.1;
 
   // Grid
-  ctx.strokeStyle='#1e3a54'; ctx.lineWidth=0.5;
-  for(let i=0;i<=4;i++){
-    const y=pad.top+ch*(i/4);
-    ctx.beginPath(); ctx.moveTo(pad.left,y); ctx.lineTo(w-pad.right,y); ctx.stroke();
-    ctx.fillStyle='#4a7a96'; ctx.font='9px -apple-system';
-    ctx.textAlign='right'; ctx.fillText((max-(max-min)*(i/4)).toFixed(1), pad.left-4, y+3);
+  ctx.strokeStyle = '#1e3a54';
+  ctx.lineWidth = 0.5;
+  for (var i = 0; i <= 4; i++) {
+    var gy = pad.top + ch * (i / 4);
+    ctx.beginPath(); ctx.moveTo(pad.left, gy); ctx.lineTo(w - pad.right, gy); ctx.stroke();
+    ctx.fillStyle = '#4a7a96';
+    ctx.font = '9px -apple-system';
+    ctx.textAlign = 'right';
+    ctx.fillText((max - (max - min) * (i / 4)).toFixed(1), pad.left - 4, gy + 3);
   }
 
   // X labels
-  ctx.fillStyle='#4a7a96'; ctx.font='9px -apple-system'; ctx.textAlign='center';
-  labels.forEach((l,i)=>{
-    const x=pad.left+(cw*i/(labels.length-1));
-    ctx.fillText(l,x,h-6);
+  ctx.fillStyle = '#4a7a96';
+  ctx.font = '9px -apple-system';
+  ctx.textAlign = 'center';
+  var xCount = labels.length;
+  labels.forEach(function(l, idx) {
+    var x = xCount > 1 ? pad.left + (cw * idx / (xCount - 1)) : pad.left + cw / 2;
+    ctx.fillText(l, x, h - 6);
   });
 
   // Reference line
-  if(refLine!==undefined){
-    const ry=pad.top+ch*(1-(refLine-min)/(max-min));
-    ctx.strokeStyle='rgba(239,68,68,0.3)'; ctx.lineWidth=1; ctx.setLineDash([4,4]);
-    ctx.beginPath(); ctx.moveTo(pad.left,ry); ctx.lineTo(w-pad.right,ry); ctx.stroke();
+  if (refLine !== undefined) {
+    var ry = pad.top + ch * (1 - (refLine - min) / (max - min));
+    ctx.strokeStyle = 'rgba(239,68,68,0.3)';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([4, 4]);
+    ctx.beginPath(); ctx.moveTo(pad.left, ry); ctx.lineTo(w - pad.right, ry); ctx.stroke();
     ctx.setLineDash([]);
   }
 
-  // Lines
-  series.forEach(s=>{
-    ctx.strokeStyle=s.color; ctx.lineWidth=2;
+  // Lines & dots
+  series.forEach(function(s, si) {
+    ctx.strokeStyle = s.color;
+    ctx.lineWidth = 2;
     ctx.beginPath();
-    let started=false;
-    s.data.forEach((v,i)=>{
-      if(v===null||isNaN(v)) return;
-      const x=pad.left+(cw*i/(labels.length-1));
-      const y=pad.top+ch*(1-(v-min)/(max-min));
-      if(!started){ctx.moveTo(x,y);started=true;} else ctx.lineTo(x,y);
+    var started = false;
+    s.data.forEach(function(v, idx) {
+      if (v === null || isNaN(v)) return;
+      var x = xCount > 1 ? pad.left + (cw * idx / (xCount - 1)) : pad.left + cw / 2;
+      var y = pad.top + ch * (1 - (v - min) / (max - min));
+      if (!started) { ctx.moveTo(x, y); started = true; } else { ctx.lineTo(x, y); }
     });
     ctx.stroke();
 
-    // Dots
-    s.data.forEach((v,i)=>{
-      if(v===null||isNaN(v)) return;
-      const x=pad.left+(cw*i/(labels.length-1));
-      const y=pad.top+ch*(1-(v-min)/(max-min));
-      ctx.fillStyle=s.color; ctx.beginPath(); ctx.arc(x,y,3,0,Math.PI*2); ctx.fill();
+    s.data.forEach(function(v, idx) {
+      if (v === null || isNaN(v)) return;
+      var x = xCount > 1 ? pad.left + (cw * idx / (xCount - 1)) : pad.left + cw / 2;
+      var y = pad.top + ch * (1 - (v - min) / (max - min));
+      ctx.fillStyle = s.color;
+      ctx.beginPath(); ctx.arc(x, y, 3, 0, Math.PI * 2); ctx.fill();
     });
 
     // Legend
-    const li=series.indexOf(s);
-    ctx.fillStyle=s.color; ctx.font='bold 10px -apple-system'; ctx.textAlign='left';
-    ctx.fillText(s.key, pad.left+li*50, 12);
+    ctx.fillStyle = s.color;
+    ctx.font = 'bold 10px -apple-system';
+    ctx.textAlign = 'left';
+    ctx.fillText(s.key, pad.left + si * 50, 12);
   });
 }
 
+// === HISTORY ===
 function renderHistory() {
-  const tanks=Object.values(TANKS);
-  let html=`<div class="tank-selector">${tanks.map(t=>
-    `<button class="tank-btn${activeTank===t.id?' active':''}" onclick="switchTank('${t.id}')">${t.emoji} ${t.name}</button>`
-  ).join('')}</div>`;
+  var tanks = [TANKS.perco, TANKS.sub];
+  var html = '<div class="tank-selector">';
+  tanks.forEach(function(t) {
+    var cls = 'tank-btn' + (activeTank === t.id ? ' active' : '');
+    html += '<button class="' + cls + '" onclick="switchTank(\'' + t.id + '\')">' + t.emoji + ' ' + t.name + '</button>';
+  });
+  html += '</div>';
 
-  const tank=TANKS[activeTank];
-  html+=`<div class="section-title" style="margin-top:0">💧 水質履歴</div>`;
-  const ql=qualityLogs.filter(l=>l.tank===activeTank).slice().reverse();
-  if(ql.length===0) html+=`<div class="empty">記録なし</div>`;
-  else ql.forEach(l=>{
-    html+=`<div class="history-item"><div class="history-header">
-      <span class="history-date">${fmtDate(l.date)}</span>
-      <button class="delete-btn" onclick="delQuality(${l.id})">×</button></div><div>`;
-    PARAMS.filter(p=>l[p]!==''&&l[p]!==undefined&&l[p]!==null).forEach(p=>{
-      const st=getStatus(l[p],tank.limits[p]);
-      html+=`<span class="tag" style="background:${statusColor(st)}18;color:${statusColor(st)}">${p}:${l[p]}</span>`;
+  var tank = TANKS[activeTank];
+
+  html += '<div class="section-title" style="margin-top:0">💧 水質履歴</div>';
+  var ql = qualityLogs.filter(function(l) { return l.tank === activeTank; }).slice().reverse();
+  if (ql.length === 0) {
+    html += '<div class="empty">記録なし</div>';
+  } else {
+    ql.forEach(function(l) {
+      html += '<div class="history-item"><div class="history-header">';
+      html += '<span class="history-date">' + fmtDate(l.date) + '</span>';
+      html += '<button class="delete-btn" onclick="delQuality(' + l.id + ')">×</button></div><div>';
+      PARAMS.forEach(function(p) {
+        if (l[p] !== '' && l[p] !== undefined && l[p] !== null) {
+          var st = getStatus(l[p], tank.limits[p]);
+          html += '<span class="tag" style="background:' + statusColor(st) + '18;color:' + statusColor(st) + '">' + p + ':' + l[p] + '</span>';
+        }
+      });
+      html += '</div>';
+      if (l.note) html += '<div class="history-note">📝 ' + escHtml(l.note) + '</div>';
+      html += '</div>';
     });
-    html+=`</div>`;
-    if(l.note) html+=`<div class="history-note">📝 ${l.note}</div>`;
-    html+=`</div>`;
-  });
+  }
 
-  html+=`<div class="section-title">🔄 換水履歴</div>`;
-  const cl=changeLogs.filter(l=>l.tank===activeTank).slice().reverse();
-  if(cl.length===0) html+=`<div class="empty">記録なし</div>`;
-  else cl.forEach(l=>{
-    html+=`<div class="history-item"><div class="history-header">
-      <span class="history-date">${fmtDate(l.date)}</span>
-      <button class="delete-btn" onclick="delChange(${l.id})">×</button></div>
-      <div style="display:flex;gap:10px;margin-top:4px">`;
-    if(l.volume) html+=`<span style="font-size:12px;color:var(--blue);font-weight:600">💧 ${l.volume}L</span>`;
-    if(l.temp) html+=`<span style="font-size:12px;color:var(--blue);font-weight:600">🌡 ${l.temp}℃</span>`;
-    html+=`</div>`;
-    if(l.note) html+=`<div class="history-note">📝 ${l.note}</div>`;
-    html+=`</div>`;
-  });
+  html += '<div class="section-title">🔄 換水履歴</div>';
+  var cl = changeLogs.filter(function(l) { return l.tank === activeTank; }).slice().reverse();
+  if (cl.length === 0) {
+    html += '<div class="empty">記録なし</div>';
+  } else {
+    cl.forEach(function(l) {
+      html += '<div class="history-item"><div class="history-header">';
+      html += '<span class="history-date">' + fmtDate(l.date) + '</span>';
+      html += '<button class="delete-btn" onclick="delChange(' + l.id + ')">×</button></div>';
+      html += '<div style="display:flex;gap:10px;margin-top:4px">';
+      if (l.volume) html += '<span style="font-size:12px;color:var(--blue);font-weight:600">💧 ' + l.volume + 'L</span>';
+      if (l.temp) html += '<span style="font-size:12px;color:var(--blue);font-weight:600">🌡 ' + l.temp + '℃</span>';
+      html += '</div>';
+      if (l.note) html += '<div class="history-note">📝 ' + escHtml(l.note) + '</div>';
+      html += '</div>';
+    });
+  }
   return html;
 }
 
 function delQuality(id) {
-  qualityLogs=qualityLogs.filter(l=>l.id!==id);
-  saveData('aq-quality',qualityLogs);
+  qualityLogs = qualityLogs.filter(function(l) { return l.id !== id; });
+  saveData('aq-quality', qualityLogs);
   renderContent();
 }
 function delChange(id) {
-  changeLogs=changeLogs.filter(l=>l.id!==id);
-  saveData('aq-changes',changeLogs);
+  changeLogs = changeLogs.filter(function(l) { return l.id !== id; });
+  saveData('aq-changes', changeLogs);
   renderContent();
 }
 
+// === EXPORT ===
 function renderExport() {
-  const text=exportText();
-  return `<div class="card">
-    <div class="card-title">📋 Claude用エクスポート</div>
-    <p style="font-size:12px;color:var(--sub);margin-bottom:12px">直近5件の水質・換水データをClaudeに貼り付けられる形式でコピーします。</p>
-    <button class="btn" id="exportBtn" onclick="copyExport()">クリップボードにコピー</button>
-  </div>
-  <div class="card">
-    <div class="card-title">プレビュー</div>
-    <pre class="export-preview">${escHtml(text)}</pre>
-  </div>`;
+  var text = exportText();
+  var html = '<div class="card">';
+  html += '<div class="card-title">📋 Claude用エクスポート</div>';
+  html += '<p style="font-size:12px;color:var(--sub);margin-bottom:12px">直近5件の水質・換水データをClaudeに貼り付けられる形式でコピーします。</p>';
+  html += '<button class="btn" id="exportBtn" onclick="copyExport()">クリップボードにコピー</button></div>';
+  html += '<div class="card"><div class="card-title">プレビュー</div>';
+  html += '<pre class="export-preview">' + escHtml(text) + '</pre></div>';
+  return html;
 }
 
 function exportText() {
   function tankBlock(tid) {
-    const t=TANKS[tid];
-    const ql=qualityLogs.filter(l=>l.tank===tid).slice(-5);
-    const cl=changeLogs.filter(l=>l.tank===tid).slice(-5);
-    let s=`## ${t.name}（${t.subtitle}）\n### 水質ログ（直近5件）\n日時 | NO3 | NO2 | GH | KH | pH | Cl2 | NH3 | メモ\n`;
-    ql.forEach(l=>{
-      s+=`${fmtDate(l.date)} | ${l.NO3||'-'} | ${l.NO2||'-'} | ${l.GH||'-'} | ${l.KH||'-'} | ${l.pH||'-'} | ${l.Cl2||'-'} | ${l.NH3||'-'} | ${l.note||'-'}\n`;
-    });
-    if(ql.length===0) s+='データなし\n';
-    s+=`### 換水ログ（直近5件）\n日時 | 量 | 水温 | メモ\n`;
-    cl.forEach(l=>{ s+=`${fmtDate(l.date)} | ${l.volume||'-'}L | ${l.temp||'-'}℃ | ${l.note||'-'}\n`; });
-    if(cl.length===0) s+='データなし\n';
+    var t = TANKS[tid];
+    var ql = qualityLogs.filter(function(l) { return l.tank === tid; }).slice(-5);
+    var cl = changeLogs.filter(function(l) { return l.tank === tid; }).slice(-5);
+    var s = '## ' + t.name + '（' + t.subtitle + '）\n';
+    s += '### 水質ログ（直近5件）\n';
+    s += '日時 | NO3 | NO2 | GH | KH | pH | Cl2 | NH3 | メモ\n';
+    if (ql.length === 0) {
+      s += 'データなし\n';
+    } else {
+      ql.forEach(function(l) {
+        s += fmtDate(l.date) + ' | ' + (l.NO3 || '-') + ' | ' + (l.NO2 || '-') + ' | ' + (l.GH || '-') + ' | ' + (l.KH || '-') + ' | ' + (l.pH || '-') + ' | ' + (l.Cl2 || '-') + ' | ' + (l.NH3 || '-') + ' | ' + (l.note || '-') + '\n';
+      });
+    }
+    s += '### 換水ログ（直近5件）\n';
+    s += '日時 | 量 | 水温 | メモ\n';
+    if (cl.length === 0) {
+      s += 'データなし\n';
+    } else {
+      cl.forEach(function(l) {
+        s += fmtDate(l.date) + ' | ' + (l.volume || '-') + 'L | ' + (l.temp || '-') + '℃ | ' + (l.note || '-') + '\n';
+      });
+    }
     return s;
   }
-  return `# アクアリウム管理データ（${fmtDate(new Date())}）\n\n${tankBlock('perco')}\n${tankBlock('sub')}`;
+  return '# アクアリウム管理データ（' + fmtDate(new Date()) + '）\n\n' + tankBlock('perco') + '\n' + tankBlock('sub');
 }
 
 function copyExport() {
-  const text=exportText();
-  navigator.clipboard.writeText(text).then(()=>{
-    const btn=document.getElementById('exportBtn');
-    btn.textContent='✅ コピー完了！'; btn.classList.add('btn-success');
-    setTimeout(()=>{btn.textContent='クリップボードにコピー';btn.classList.remove('btn-success');},2000);
-  }).catch(()=>{
-    // Fallback
-    const ta=document.createElement('textarea'); ta.value=text; document.body.appendChild(ta);
-    ta.select(); document.execCommand('copy'); document.body.removeChild(ta);
-    const btn=document.getElementById('exportBtn');
-    btn.textContent='✅ コピー完了！'; btn.classList.add('btn-success');
-    setTimeout(()=>{btn.textContent='クリップボードにコピー';btn.classList.remove('btn-success');},2000);
-  });
+  var text = exportText();
+  var btn = document.getElementById('exportBtn');
+
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(function() {
+      if (btn) { btn.textContent = '✅ コピー完了！'; btn.className = 'btn btn-success'; }
+      setTimeout(function() { if (btn) { btn.textContent = 'クリップボードにコピー'; btn.className = 'btn'; } }, 2000);
+    }).catch(function() {
+      fallbackCopy(text, btn);
+    });
+  } else {
+    fallbackCopy(text, btn);
+  }
 }
 
-function escHtml(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function fallbackCopy(text, btn) {
+  var ta = document.createElement('textarea');
+  ta.value = text;
+  ta.style.position = 'fixed';
+  ta.style.left = '-9999px';
+  document.body.appendChild(ta);
+  ta.select();
+  try { document.execCommand('copy'); } catch (e) {}
+  document.body.removeChild(ta);
+  if (btn) { btn.textContent = '✅ コピー完了！'; btn.className = 'btn btn-success'; }
+  setTimeout(function() { if (btn) { btn.textContent = 'クリップボードにコピー'; btn.className = 'btn'; } }, 2000);
+}
 
 // === INIT ===
 renderTabs();
