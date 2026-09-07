@@ -361,7 +361,7 @@ details[open] summary::before { content: '▼ '; }
 
 <div class="header">
   <h1>🐟 AquaLog</h1>
-  <p>水質管理・換水記録・スケジュール</p>
+  <p>水質管理・換水記録・スケジュール｜WISELABO対応</p>
 </div>
 
 <div class="tabs" id="tabs"></div>
@@ -371,47 +371,48 @@ details[open] summary::before { content: '▼ '; }
 // === CONFIG ===
 var TANKS = {
   perco: {
-    id:'perco', name:'PERCO', subtitle:'ミッキー（赤プラティ）', emoji:'🐠',
+    id:'perco', name:'PERCO', subtitle:'ミッキー＋ミナミヌマエビ', emoji:'🐠',
     limits: {
-      NO3:{safe:[0,50],ideal:[0,25]}, NO2:{safe:[0,0],ideal:[0,0]},
-      GH:{safe:[4,12],ideal:[4,8]}, KH:{safe:[2,10],ideal:[2,6]},
-      pH:{safe:[6.5,8.0],ideal:[6.8,7.5]}, Cl2:{safe:[0,0],ideal:[0,0]},
+      NO3:{safe:[0,40],ideal:[0,25]}, NO2:{safe:[0,0],ideal:[0,0]},
+      GH:{safe:[71,214],ideal:[71,143]}, KH:{safe:[36,178],ideal:[36,107]},
+      pH:{safe:[6.5,7.8],ideal:[7.0,7.5]}, Cl2:{safe:[0,0],ideal:[0,0]},
       NH3:{safe:[0,0.02],ideal:[0,0]}
     }
   },
   sub: {
-    id:'sub', name:'サブ水槽', subtitle:'ベル＆フィガロ＋エビ', emoji:'🦐',
+    id:'sub', name:'サブ水槽', subtitle:'アカヒレトリオ', emoji:'🐟',
     limits: {
-      NO3:{safe:[0,30],ideal:[0,25]}, NO2:{safe:[0,0],ideal:[0,0]},
-      GH:{safe:[4,8],ideal:[4,6]}, KH:{safe:[2,8],ideal:[2,6]},
-      pH:{safe:[6.0,7.5],ideal:[6.5,7.0]}, Cl2:{safe:[0,0],ideal:[0,0]},
+      NO3:{safe:[0,40],ideal:[0,25]}, NO2:{safe:[0,0],ideal:[0,0]},
+      GH:{safe:[36,214],ideal:[71,143]}, KH:{safe:[36,178],ideal:[36,107]},
+      pH:{safe:[6.0,8.0],ideal:[6.5,7.5]}, Cl2:{safe:[0,0],ideal:[0,0]},
       NH3:{safe:[0,0.02],ideal:[0,0]}
     }
   }
 };
 var PARAMS = ['NO3','NO2','GH','KH','pH','Cl2','NH3'];
+var PARAM_LABELS = {NO3:'NO3',NO2:'NO2',GH:'GH(mg/L)',KH:'KH(mg/L)',pH:'pH',Cl2:'Cl2',NH3:'NH3'};
 var PARAM_COLORS = {NO3:'#e07a3a',NO2:'#d94040',GH:'#5b8fb9',KH:'#7b6fb0',pH:'#3a9e6e',Cl2:'#8fad5e',NH3:'#c75d8a'};
 
 // === SCHEDULE CONFIG ===
 var SCHEDULES = {
   perco_treatment: {
     change: { intervalDays: 2.5, label: '換水＋底砂プロホース', detail: '1/2換水、2分割で底砂掃除。水温30℃合わせ' },
-    measure: { intervalDays: 2.5, label: '水質測定（6in1）', detail: '換水前に測定。NO2検出で即追加換水' },
+    measure: { intervalDays: 2.5, label: '水質測定（WISELABO）', detail: '換水前に測定。NO2検出で即追加換水' },
     ammonia: { intervalDays: 3, label: 'アンモニア測定', detail: 'sera試薬で測定' }
   },
   perco_normal: {
-    change: { intervalDays: 7, label: '換水＋底砂プロホース', detail: '1/4換水。NO3が40超えでペース上げ' },
-    measure: { intervalDays: 7, label: '水質測定（6in1）', detail: '換水前に測定' },
+    change: { intervalDays: 14, label: 'スポイト清掃＋足し水', detail: '稚エビがいるためプロホース封印。スポイトで目立つゴミ回収' },
+    measure: { intervalDays: 2, label: '水質測定（WISELABO）', detail: 'NO2重点。エビ導入後1週間は毎日→安定後2〜3日おき' },
     ammonia: { intervalDays: 14, label: 'アンモニア測定', detail: '定期チェック' }
   },
   sub_initial: {
     change: { intervalDays: 7, label: 'スポイト清掃＋足し水', detail: 'NO3が30超えたら1/4換水' },
-    measure: { intervalDays: 3, label: '水質測定（6in1）', detail: 'アカヒレ導入後1〜2週間は頻回測定' },
-    ammonia: { intervalDays: 3, label: 'アンモニア測定', detail: '導入直後は重点モニタリング' }
+    measure: { intervalDays: 3, label: '水質測定（WISELABO）', detail: '改造後1〜2週間は頻回測定' },
+    ammonia: { intervalDays: 3, label: 'アンモニア測定', detail: '改造直後は重点モニタリング' }
   },
   sub_stable: {
     change: { intervalDays: 7, label: 'スポイト清掃＋足し水', detail: '目視で汚れたら適宜。NO3が30超えで1/4換水' },
-    measure: { intervalDays: 7, label: '水質測定（6in1）', detail: '定期チェック' },
+    measure: { intervalDays: 7, label: '水質測定（WISELABO）', detail: '定期チェック' },
     ammonia: { intervalDays: 14, label: 'アンモニア測定', detail: '定期チェック' }
   }
 };
@@ -430,8 +431,8 @@ function saveData(key, data) {
 var qualityLogs = loadData('aq-quality', []);
 var changeLogs = loadData('aq-changes', []);
 var settings = loadData('aq-settings', {
-  percoMode: 'treatment',
-  subMode: 'initial'
+  percoMode: 'normal',
+  subMode: 'stable'
 });
 
 var activeTab = 'dashboard';
@@ -502,8 +503,8 @@ function getAlerts(tid) {
   PARAMS.forEach(function(p) {
     if (latest[p] !== '' && latest[p] !== undefined && latest[p] !== null) {
       var st = getStatus(latest[p], tank.limits[p]);
-      if (st === 'danger') alerts.push({type:'danger', msg: p + ': ' + latest[p] + ' — 危険域！即対応'});
-      else if (st === 'warn') alerts.push({type:'warn', msg: p + ': ' + latest[p] + ' — 注意域'});
+      if (st === 'danger') alerts.push({type:'danger', msg: (PARAM_LABELS[p] || p) + ': ' + latest[p] + ' — 危険域！即対応'});
+      else if (st === 'warn') alerts.push({type:'warn', msg: (PARAM_LABELS[p] || p) + ': ' + latest[p] + ' — 注意域'});
     }
   });
   var lc = getLastChange(tid);
@@ -584,7 +585,7 @@ function renderDashboard() {
         if (latest[p] !== '' && latest[p] !== undefined && latest[p] !== null) {
           var st = getStatus(latest[p], tank.limits[p]);
           html += '<div class="value-cell" style="border:1px solid ' + statusColor(st) + '30">';
-          html += '<div class="value-label">' + p + '</div>';
+          html += '<div class="value-label">' + (PARAM_LABELS[p] || p) + '</div>';
           html += '<div class="value-num" style="color:' + statusColor(st) + '">' + latest[p] + '</div></div>';
         }
       });
@@ -603,7 +604,7 @@ function renderDashboard() {
     var tank = TANKS[tid];
     html += '<div style="margin-bottom:10px"><div style="font-size:12px;font-weight:700;color:var(--blue);margin-bottom:4px">' + tank.emoji + ' ' + tank.name + '</div>';
     PARAMS.forEach(function(p) {
-      html += '<div class="safe-line"><span>' + p + '</span>';
+      html += '<div class="safe-line"><span>' + (PARAM_LABELS[p] || p) + '</span>';
       html += '<span>理想: ' + tank.limits[p].ideal[0] + '〜' + tank.limits[p].ideal[1] + ' / 限界: ' + tank.limits[p].safe[0] + '〜' + tank.limits[p].safe[1] + '</span></div>';
     });
     html += '</div>';
@@ -625,7 +626,7 @@ function renderLog() {
   // Quality form
   html += '<div class="card"><div class="card-title">💧 水質記録</div><div class="input-grid">';
   PARAMS.forEach(function(p) {
-    html += '<div class="input-group"><label>' + p + '</label>';
+    html += '<div class="input-group"><label>' + (PARAM_LABELS[p] || p) + '</label>';
     html += '<input type="number" step="0.1" id="q_' + p + '" placeholder="-" inputmode="decimal"></div>';
   });
   html += '</div>';
@@ -705,7 +706,7 @@ function renderSchedule() {
   // Mode toggle
   html += '<div class="toggle-row">';
   html += '<div><div class="toggle-label">白点治療モード</div>';
-  html += '<div class="toggle-sub">' + (settings.percoMode === 'treatment' ? '2〜3日おき換水＋プロホース' : '週1回の定期換水') + '</div></div>';
+  html += '<div class="toggle-sub">' + (settings.percoMode === 'treatment' ? '2〜3日おき換水＋プロホース' : 'スポイト清掃＋WISELABO定期測定（エビ対応）') + '</div></div>';
   html += '<label class="toggle-switch"><input type="checkbox" ' + (settings.percoMode === 'treatment' ? 'checked' : '') + ' onchange="togglePercoMode(this)">';
   html += '<span class="toggle-slider"></span></label></div>';
 
@@ -727,8 +728,8 @@ function renderSchedule() {
 
   // Mode toggle
   html += '<div class="toggle-row">';
-  html += '<div><div class="toggle-label">導入直後モード</div>';
-  html += '<div class="toggle-sub">' + (settings.subMode === 'initial' ? '3日おき測定（重点モニタリング）' : '週1回の定期チェック') + '</div></div>';
+  html += '<div><div class="toggle-label">改造直後モード</div>';
+  html += '<div class="toggle-sub">' + (settings.subMode === 'initial' ? '改造後の重点モニタリング（3日おき）' : '週1回の定期チェック（アカヒレ専用）') + '</div></div>';
   html += '<label class="toggle-switch"><input type="checkbox" ' + (settings.subMode === 'initial' ? 'checked' : '') + ' onchange="toggleSubMode(this)">';
   html += '<span class="toggle-slider"></span></label></div>';
 
@@ -809,11 +810,11 @@ function renderProtocol() {
   var steps = [
     { label: '27℃設定（実測28.8℃）', detail: '8/18完了', status: 'done' },
     { label: '28℃設定（実測29.8℃）', detail: '8/19完了 — 治療温度到達', status: 'done' },
-    { label: '30℃維持＋底砂掃除', detail: '白点消失を待つ。2〜3日おき換水', status: 'active' },
-    { label: '白点消失後1週間維持', detail: '糞の色が茶色に戻るまで', status: 'pending' },
-    { label: '4日かけて26℃に降温', detail: '1日1℃ずつ', status: 'pending' },
-    { label: 'エビを本水槽に戻す', detail: '成体2〜3匹、点滴法で', status: 'pending' },
-    { label: '新プラティ追加', detail: 'オス同士で繁殖防止', status: 'pending' }
+    { label: '30℃維持＋底砂掃除', detail: '完了 — 白点消失確認', status: 'done' },
+    { label: '白点消失後1週間維持', detail: '完了 — 糞の色が茶色に安定', status: 'done' },
+    { label: '4日かけて26℃に降温', detail: '9/4〜9/6完了（1日1℃）', status: 'done' },
+    { label: 'ヒーター交換', detail: '9/6完了 — 水作AH-81に交換、27℃安定', status: 'done' },
+    { label: 'エビを本水槽に移送', detail: '9/6完了 — 親エビ1匹＋稚エビ約20匹', status: 'done' }
   ];
 
   var html = '';
@@ -980,7 +981,7 @@ function drawLineChart(canvasId, w, h, labels, series, refLine) {
     ctx.fillStyle = s.color;
     ctx.font = 'bold 10px -apple-system';
     ctx.textAlign = 'left';
-    ctx.fillText(s.key, pad.left + si * 50, 12);
+    ctx.fillText(PARAM_LABELS[s.key] || s.key, pad.left + si * 60, 12);
   });
 }
 
@@ -1008,7 +1009,7 @@ function renderHistory() {
       PARAMS.forEach(function(p) {
         if (l[p] !== '' && l[p] !== undefined && l[p] !== null) {
           var st = getStatus(l[p], tank.limits[p]);
-          html += '<span class="tag" style="background:' + statusColor(st) + '18;color:' + statusColor(st) + '">' + p + ':' + l[p] + '</span>';
+          html += '<span class="tag" style="background:' + statusColor(st) + '18;color:' + statusColor(st) + '">' + (PARAM_LABELS[p] || p) + ':' + l[p] + '</span>';
         }
       });
       html += '</div>';
@@ -1053,7 +1054,7 @@ function renderExport() {
   var text = exportText();
   var html = '<div class="card">';
   html += '<div class="card-title">📋 Claude用エクスポート</div>';
-  html += '<p style="font-size:12px;color:var(--sub);margin-bottom:12px">直近5件の水質・換水データをClaudeに貼り付けられる形式でコピーします。</p>';
+  html += '<p style="font-size:12px;color:var(--sub);margin-bottom:12px">直近5件の水質・換水データをClaudeに貼り付けられる形式でコピーします。<br>試験紙: WISELABO 6in1 / GH・KH: mg/L表記</p>';
   html += '<button class="btn" id="exportBtn" onclick="copyExport()">クリップボードにコピー</button></div>';
   html += '<div class="card"><div class="card-title">プレビュー</div>';
   html += '<pre class="export-preview">' + escHtml(text) + '</pre></div>';
@@ -1066,8 +1067,10 @@ function exportText() {
     var ql = qualityLogs.filter(function(l) { return l.tank === tid; }).slice(-5);
     var cl = changeLogs.filter(function(l) { return l.tank === tid; }).slice(-5);
     var s = '## ' + t.name + '（' + t.subtitle + '）\n';
+    s += '試験紙: WISELABO 6in1 / GH・KH単位: mg/L\n';
+    s += '水源: 熊本市地下水（硬度90mg/L, pH7.2）\n\n';
     s += '### 水質ログ（直近5件）\n';
-    s += '日時 | NO3 | NO2 | GH | KH | pH | Cl2 | NH3 | メモ\n';
+    s += '日時 | NO3 | NO2 | GH(mg/L) | KH(mg/L) | pH | Cl2 | NH3 | メモ\n';
     if (ql.length === 0) {
       s += 'データなし\n';
     } else {
@@ -1075,7 +1078,7 @@ function exportText() {
         s += fmtDate(l.date) + ' | ' + (l.NO3 || '-') + ' | ' + (l.NO2 || '-') + ' | ' + (l.GH || '-') + ' | ' + (l.KH || '-') + ' | ' + (l.pH || '-') + ' | ' + (l.Cl2 || '-') + ' | ' + (l.NH3 || '-') + ' | ' + (l.note || '-') + '\n';
       });
     }
-    s += '### 換水ログ（直近5件）\n';
+    s += '\n### 換水ログ（直近5件）\n';
     s += '日時 | 量 | 水温 | メモ\n';
     if (cl.length === 0) {
       s += 'データなし\n';
